@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaiser — Comparador de Precios</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+  .header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .header-logo { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .header-logo span { color: #facc15; }
+  .header-sub { font-size: 12px; opacity: 0.6; letter-spacing: 1px; text-transform: uppercase; }
+  .header-title { font-size: 15px; font-weight: 600; }
+  .tabs { display: flex; background: white; border-bottom: 1px solid #e2e8f0; padding: 0 24px; }
+  .tab { padding: 14px 20px; border: none; background: none; cursor: pointer; font-size: 14px; color: #64748b; border-bottom: 3px solid transparent; font-weight: 500; transition: all 0.15s; }
+  .tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+  .tab:hover:not(.active) { color: #334155; background: #f8fafc; }
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 14px; }
+  label { font-size: 12px; color: #64748b; display: block; margin-bottom: 4px; font-weight: 500; }
+  select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: white; color: #1e293b; margin-bottom: 14px; cursor: pointer; }
+  select:focus { outline: none; border-color: #1e3a5f; }
+  .drop-zone { border: 2px dashed #cbd5e1; border-radius: 10px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 14px; }
+  .drop-zone:hover, .drop-zone.over { border-color: #1e3a5f; background: #f0f4ff; }
+  .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
+  .drop-zone h3 { font-size: 15px; color: #334155; margin-bottom: 6px; }
+  .drop-zone p { font-size: 13px; color: #94a3b8; }
+  .drop-zone .formats { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .format-badge { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: #475569; }
+  #file-input { display: none; }
+  .file-selected { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #166534; margin-bottom: 14px; display: none; align-items: center; gap: 8px; }
+  .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: 1px solid #cbd5e1; background: white; color: #334155; font-weight: 500; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: #f8fafc; }
+  .btn.primary { background: #1e3a5f; color: white; border-color: #1e3a5f; }
+  .btn.primary:hover { background: #2a4f7c; }
+  .btn.danger { border-color: #fca5a5; color: #dc2626; }
+  .btn.danger:hover { background: #fef2f2; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .status-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #64748b; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+  .dot.green { background: #16a34a; }
+  .dot.orange { background: #d97706; animation: pulse 1s infinite; }
+  .dot.red { background: #dc2626; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+  .msg.ok { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .msg.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .msg.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .preview-table-wrap { overflow-x: auto; margin-bottom: 14px; max-height: 360px; overflow-y: auto; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .preview-table th { background: #1e3a5f; color: white; padding: 8px 12px; text-align: left; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+  .preview-table td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; }
+  .preview-table tr:hover td { background: #f8fafc; }
+  .preview-table tr:nth-child(even) td { background: #fafafa; }
+  .search-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
+  .search-row input { flex: 1; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+  .search-row input:focus { outline: none; border-color: #1e3a5f; }
+  .matrix-wrap { overflow-x: auto; }
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+  .matrix-table th { background: #1e3a5f; color: white; padding: 9px 12px; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+  .matrix-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  .matrix-table tr:hover td { background: #f8fafc; }
+  .best-price { background: #f0fdf4 !important; color: #15803d; font-weight: 700; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .no-data { color: #94a3b8; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+  .stat-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .stat-val { font-size: 20px; font-weight: 700; color: #1e3a5f; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .progress { background: #e2e8f0; border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; }
+  .progress-bar { background: #1e3a5f; height: 100%; width: 0; transition: width 0.3s; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-logo">Kaiser<span>.</span></div>
+  </div>
+  <div style="border-left:1px solid rgba(255,255,255,0.2); padding-left:16px;">
+    <div class="header-sub">Papelera Kaiser</div>
+    <div class="header-title">Comparador de Precios — Proveedores</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('cargar')">📤 Cargar lista</button>
+  <button class="tab" onclick="switchTab('matriz')">📊 Matriz de precios</button>
+</div>
+
+<!-- TAB CARGAR -->
+<div id="tab-cargar" class="panel active">
+  <div class="container">
+    <div class="status-bar">
+      <div class="dot" id="dot-cargar"></div>
+      <span id="txt-status">Listo para cargar una lista</span>
+      <div class="progress" id="progress-wrap" style="flex:1; display:none"><div class="progress-bar" id="progress-bar"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">1. Seleccioná el proveedor</div>
+      <label>Proveedor</label>
+      <select id="sel-prov">
+        <option value="">— Seleccioná un proveedor —</option>
+        <option value="GABY">Papelera GABY</option>
+        <option value="SUAVENOL">SUAVENOL SRL</option>
+        <option value="COTILLON INTEGRAL">COTILLON INTEGRAL SRL</option>
+        <option value="THAMES">Casa THAMES</option>
+        <option value="Envamax">Envamax</option>
+        <option value="Galplas">Galplas</option>
+        <option value="Esteban">Esteban</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2. Subí la lista del proveedor</div>
+      <input type="file" id="file-input" accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="ev(event)" ondrop="drop(event)">
+        <div class="icon">📎</div>
+        <h3>Arrastrá el archivo acá o hacé click para buscarlo</h3>
+        <p>Tal como te lo manda el proveedor — no hace falta modificarlo</p>
+        <div class="formats">
+          <span class="format-badge">📄 PDF</span>
+          <span class="format-badge">📊 Excel</span>
+          <span class="format-badge">📋 CSV</span>
+          <span class="format-badge">🖼️ Imagen</span>
+        </div>
+      </div>
+      <div class="file-selected" id="file-selected">
+        <span>📎</span>
+        <span id="file-name"></span>
+        <button class="btn btn-sm danger" onclick="quitarArchivo()" style="padding:4px 10px; font-size:12px; margin-left:auto;">✕ Quitar</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" onclick="procesarArchivo()" id="btn-proc">✨ Procesar con IA</button>
+        <button class="btn" onclick="limpiarTodo()">Limpiar</button>
+      </div>
+    </div>
+
+    <div id="preview-section" style="display:none">
+      <div class="card">
+        <div id="msg-preview"></div>
+        <div class="card-title" id="preview-title"></div>
+        <div class="preview-table-wrap">
+          <table class="preview-table">
+            <thead><tr><th>Producto</th><th>Categoría</th><th>Unidad</th><th>Precio</th></tr></thead>
+            <tbody id="tbody-preview"></tbody>
+          </table>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" onclick="guardarEnSheet()" id="btn-guardar">💾 Guardar en Google Sheet</button>
+          <button class="btn" onclick="cancelarPreview()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB MATRIZ -->
+<div id="tab-matriz" class="panel">
+  <div class="container">
+    <div class="stats" id="stats-bar"></div>
+    <div class="card">
+      <div class="search-row">
+        <input type="text" id="buscar" placeholder="🔍 Buscar producto o categoría..." oninput="filtrarMatriz()">
+        <button class="btn primary" onclick="cargarMatriz()">🔄 Actualizar</button>
+      </div>
+      <div id="matriz-content">
+        <div style="text-align:center; padding:40px; color:#94a3b8;">Hacé click en Actualizar para cargar los precios del sheet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzeKb8clms_O3JC9-UX3c5DIolKUkClRHo9lpw4n8nxKkmWulUyOTAoSBwqghh9aGqd/exec";
+const PROVEEDORES = ["GABY","SUAVENOL","COTILLON INTEGRAL","THAMES","Envamax","Galplas","Esteban"];
+
+let archivoActual = null;
+let previewData = [];
+let matrizData = [];
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i)=> el.classList.toggle('active',['cargar','matriz'][i]===t));
+  document.querySelectorAll('.panel').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='matriz') cargarMatriz();
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────
+function ev(e){ e.preventDefault(); document.getElementById('drop-zone').classList.add('over'); }
+function drop(e){
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('over');
+  if(e.dataTransfer.files[0]) setArchivo(e.dataTransfer.files[0]);
+}
+document.getElementById('file-input').addEventListener('change', e => {
+  if(e.target.files[0]) setArchivo(e.target.files[0]);
+});
+
+function setArchivo(file){
+  archivoActual = file;
+  document.getElementById('file-name').textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+  document.getElementById('file-selected').style.display = 'flex';
+  document.getElementById('drop-zone').style.display = 'none';
+  setStatus('green', 'Archivo listo: ' + file.name);
+}
+
+function quitarArchivo(){
+  archivoActual = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-selected').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'block';
+  setStatus('', 'Listo para cargar una lista');
+}
+
+function limpiarTodo(){
+  quitarArchivo();
+  document.getElementById('sel-prov').value = '';
+  cancelarPreview();
+}
+
+// ── Procesar archivo con IA ──────────────────────────────────
+async function procesarArchivo(){
+  const prov = document.getElementById('sel-prov').value;
+  if(!prov){ alert('Seleccioná un proveedor primero.'); return; }
+  if(!archivoActual){ alert('Subí un archivo primero.'); return; }
+
+  const btn = document.getElementById('btn-proc');
+  btn.disabled = true;
+  btn.textContent = '⏳ Procesando...';
+  setStatus('orange', 'Procesando archivo con IA...');
+  showProgress(30);
+
+  try {
+    const ext = archivoActual.name.split('.').pop().toLowerCase();
+    let contenido = '';
+    let messages = [];
+
+    if(['png','jpg','jpeg','webp'].includes(ext)){
+      // Imagen → enviar como vision
+      const b64 = await toBase64(archivoActual);
+      const mime = archivoActual.type || 'image/jpeg';
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+          { type: 'text', text: promptExtraccion(prov) }
+        ]
+      }];
+    } else if(['xlsx','xls'].includes(ext)){
+      // Excel → extraer texto con SheetJS
+      const buf = await archivoActual.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const lines = [];
+      wb.SheetNames.forEach(sn => {
+        const ws = wb.Sheets[sn];
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        if(csv.trim()) lines.push('=== Hoja: '+sn+' ===\n'+csv);
+      });
+      contenido = lines.join('\n\n');
+      messages = [{ role: 'user', content: promptExtraccion(prov) + '\n\nContenido del Excel:\n' + contenido.slice(0, 8000) }];
+    } else if(ext === 'csv'){
+      contenido = await archivoActual.text();
+      messages = [{ role: 'user', content: promptExtraccion(prov) + '\n\nContenido CSV:\n' + contenido.slice(0, 8000) }];
+    } else if(ext === 'pdf'){
+      // PDF → convertir a base64 y enviar como documento
+      const b64 = await toBase64(archivoActual);
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+          { type: 'text', text: promptExtraccion(prov) }
+        ]
+      }];
+    } else {
+      throw new Error('Formato no soportado: ' + ext);
+    }
+
+    showProgress(60);
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, messages })
+    });
+
+    showProgress(85);
+    const data = await resp.json();
+    if(data.error) throw new Error(data.error.message);
+
+    const txt = data.content[0].text.replace(/```json|```/g,'').trim();
+    const productos = JSON.parse(txt);
+    if(!Array.isArray(productos) || !productos.length) throw new Error('No se encontraron productos con precio en el archivo.');
+
+    previewData = productos.map(p => ({ ...p, precios: { [prov]: p.precio } }));
+    mostrarPreview(productos, prov);
+    showProgress(100);
+    setStatus('green', productos.length + ' productos extraídos de ' + archivoActual.name);
+
+  } catch(e) {
+    setStatus('red', 'Error: ' + e.message);
+    document.getElementById('msg-preview').innerHTML = '<div class="msg err">❌ ' + e.message + '</div>';
+    document.getElementById('preview-section').style.display = 'block';
+    showProgress(0);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Procesar con IA';
+  }
+}
+
+function promptExtraccion(prov){
+  return `Sos un extractor de listas de precios para una papelería mayorista argentina llamada Papelera Kaiser.
+Extraé los productos de esta lista del proveedor "${prov}".
+Devolvé SOLO un JSON array (sin markdown, sin texto extra, sin explicaciones) con objetos:
+- producto: string (nombre normalizado y limpio en español)
+- categoria: string, uno de: "Papel y rollos" | "Higiene personal" | "Limpieza" | "Cotillón" | "Descartables" | "Embalaje" | "Otros"
+- unidad: string, uno de: "unidad" | "pack" | "caja" | "kg" | "rollo" | "bolsa"
+- precio: number (precio en pesos argentinos, sin símbolo $, sin puntos de miles, sin IVA si viene separado)
+Omitir productos sin precio claro. Si hay varios precios (mayorista/minorista), tomar el mayorista.`;
+}
+
+function toBase64(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(file);
+  });
+}
+
+// ── Preview ──────────────────────────────────────────────────
+function mostrarPreview(productos, prov){
+  document.getElementById('preview-title').textContent = 'Vista previa — ' + prov + ' (' + productos.length + ' productos detectados)';
+  const tbody = document.getElementById('tbody-preview');
+  tbody.innerHTML = '';
+  productos.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.producto}</td><td>${p.categoria}</td><td>${p.unidad}</td><td style="font-weight:600">$${Number(p.precio).toLocaleString('es-AR')}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('preview-section').style.display = 'block';
+  document.getElementById('msg-preview').innerHTML = '<div class="msg info">ℹ️ Revisá que los productos y precios sean correctos antes de guardar.</div>';
+  document.getElementById('preview-section').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelarPreview(){
+  previewData = [];
+  document.getElementById('preview-section').style.display = 'none';
+  document.getElementById('msg-preview').innerHTML = '';
+}
+
+// ── Guardar en Sheet ─────────────────────────────────────────
+async function guardarEnSheet(){
+  if(!previewData.length) return;
+  const btn = document.getElementById('btn-guardar');
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  setStatus('orange', 'Guardando en Google Sheet...');
+
+  try {
+    await fetch(WEB_APP_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'guardar', productos: previewData })
+    });
+    document.getElementById('msg-preview').innerHTML = '<div class="msg ok">✅ ' + previewData.length + ' productos guardados correctamente en Google Sheet.</div>';
+    setStatus('green', 'Guardado exitoso — ' + previewData.length + ' productos');
+    document.getElementById('btn-guardar').style.display = 'none';
+    setTimeout(() => { cancelarPreview(); limpiarTodo(); switchTab('matriz'); }, 2000);
+  } catch(e) {
+    document.getElementById('msg-preview').innerHTML = '<div class="msg err">❌ Error al guardar: ' + e.message + '</div>';
+    setStatus('red', 'Error al guardar');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Guardar en Google Sheet';
+  }
+}
+
+// ── Matriz ───────────────────────────────────────────────────
+async function cargarMatriz(){
+  document.getElementById('matriz-content').innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Cargando desde Google Sheet...</div>';
+  try {
+    const resp = await fetch(WEB_APP_URL + '?action=leer&_=' + Date.now());
+    const data = await resp.json();
+    if(!data.ok) throw new Error(data.error);
+    matrizData = data.data;
+    renderEstadisticas(matrizData);
+    renderMatriz(matrizData);
+  } catch(e) {
+    document.getElementById('matriz-content').innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626">❌ No se pudo cargar: ' + e.message + '</div>';
+  }
+}
+
+function renderEstadisticas(rows){
+  const provs = new Set();
+  rows.forEach(r => { if(r.precios) Object.keys(r.precios).forEach(p => { if(r.precios[p]) provs.add(p); }); });
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat"><div class="stat-label">Productos</div><div class="stat-val">${rows.length}</div></div>
+    <div class="stat"><div class="stat-label">Proveedores cargados</div><div class="stat-val">${provs.size}</div></div>
+    <div class="stat"><div class="stat-label">Última actualización</div><div class="stat-val" style="font-size:14px">${rows[0]?.ultimaActualizacion||'—'}</div></div>
+  `;
+}
+
+function renderMatriz(rows){
+  if(!rows.length){
+    document.getElementById('matriz-content').innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">No hay productos cargados aún. Cargá la primera lista desde "Cargar lista".</div>';
+    return;
+  }
+  let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th>Producto</th><th>Categoría</th>';
+  PROVEEDORES.forEach(p => html += '<th>' + p + '</th>');
+  html += '<th style="background:#0f2a45">Más barato</th></tr></thead><tbody>';
+
+  rows.forEach(row => {
+    const precios = PROVEEDORES.map(p => row.precios && row.precios[p] ? Number(row.precios[p]) : null);
+    const validos = precios.filter(x => x !== null);
+    const minVal = validos.length ? Math.min(...validos) : null;
+    const minProv = minVal !== null ? PROVEEDORES[precios.indexOf(minVal)] : null;
+
+    html += '<tr><td style="font-weight:600;min-width:160px">' + row.producto + '</td>';
+    html += '<td style="color:#64748b;font-size:11px">' + (row.categoria||'') + '</td>';
+    PROVEEDORES.forEach((p,i) => {
+      const v = precios[i];
+      const best = v !== null && v === minVal;
+      html += '<td class="' + (best ? 'best-price' : '') + '">' + (v !== null ? '$' + v.toLocaleString('es-AR') : '<span class="no-data">—</span>') + '</td>';
+    });
+    html += '<td><span class="badge" style="background:#dbeafe;color:#1e40af">' + (minProv||'—') + '</span></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('matriz-content').innerHTML = html;
+}
+
+function filtrarMatriz(){
+  const q = document.getElementById('buscar').value.toLowerCase();
+  renderMatriz(q ? matrizData.filter(r => r.producto.toLowerCase().includes(q) || (r.categoria||'').toLowerCase().includes(q)) : matrizData);
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function setStatus(color, txt){
+  document.getElementById('txt-status').textContent = txt;
+  const dot = document.getElementById('dot-cargar');
+  dot.className = 'dot' + (color ? ' '+color : '');
+}
+
+function showProgress(pct){
+  const wrap = document.getElementById('progress-wrap');
+  const bar = document.getElementById('progress-bar');
+  wrap.style.display = pct > 0 && pct < 100 ? 'block' : 'none';
+  bar.style.width = pct + '%';
+}
+</script>
+</body>
+</html>
