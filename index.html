@@ -329,12 +329,15 @@ async function procesarArchivo(){
     const resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,messages})
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,messages})
     });
     showProg(85);
     const data=await resp.json();
     if(data.error) throw new Error(data.error.message);
-    const txt=data.content[0].text.replace(/```json|```/g,'').trim();
+    const raw=data.content[0].text.replace(/```json|```/g,'').trim();
+    // Intentar reparar JSON cortado
+    let txt=raw;
+    if(!txt.endsWith(']')){ const last=txt.lastIndexOf('},'); if(last>0) txt=txt.slice(0,last+1)+']'; else txt=txt+']}]'.slice(txt.split('[').length-1); }
     const productos=JSON.parse(txt);
     if(!Array.isArray(productos)||!productos.length) throw new Error('No se encontraron productos con precio.');
     previewData=productos.map(p=>({...p,precios:{[prov]:p.precio}}));
@@ -345,14 +348,7 @@ async function procesarArchivo(){
 }
 
 function promptExt(prov){
-  return `Sos un extractor de listas de precios para una papelería mayorista argentina (Papelera Kaiser).
-Extraé los productos de esta lista del proveedor "${prov}".
-Devolvé SOLO un JSON array (sin markdown, sin texto extra) con objetos:
-- producto: string (nombre normalizado y limpio, en español, sin código de proveedor)
-- categoria: "Papel y rollos"|"Higiene personal"|"Limpieza"|"Cotillón"|"Descartables"|"Embalaje"|"Otros"
-- unidad: "unidad"|"pack"|"caja"|"kg"|"rollo"|"bolsa"
-- precio: number (pesos argentinos, sin símbolo, precio mayorista si hay varios)
-Omitir productos sin precio claro.`;
+  return `Sos un extractor de listas de precios para papelería mayorista argentina (Papelera Kaiser). Extraé TODOS los productos con precio de esta lista del proveedor "${prov}". Devolvé SOLO un JSON array compacto (sin markdown, sin espacios extra) donde cada objeto tiene exactamente estas claves: producto (nombre corto en español sin códigos), categoria (una de: Papel y rollos|Higiene personal|Limpieza|Cotillon|Descartables|Embalaje|Otros), unidad (una de: unidad|pack|caja|kg|rollo|bolsa), precio (number en pesos sin símbolo, mayorista si hay varios). Omitir sin precio. JSON lo más compacto posible.`;
 }
 
 function toB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=()=>rej(new Error('No se pudo leer')); r.readAsDataURL(f); }); }
@@ -746,4 +742,3 @@ renderOCItems();
 </script>
 </body>
 </html>
-
